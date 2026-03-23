@@ -1,6 +1,14 @@
-"""Execution layer: order manager and fill simulator."""
+"""Execution layer: order manager, fill simulator, REST client, and user-data stream."""
 
+from .binance_client import BinanceClient
+from .order_manager import Order, OrderManager
 from .simulator import FillSimulator
-from .order_manager import OrderManager
+from .user_stream import UserDataStream
 
-__all__ = ["FillSimulator", "OrderManager"]
+__all__ = [
+    "BinanceClient",
+    "FillSimulator",
+    "Order",
+    "OrderManager",
+    "UserDataStream",
+]
