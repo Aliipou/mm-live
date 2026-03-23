@@ -1,117 +1,194 @@
 # mm-live
 
-Production-grade market making system built on asyncio. Connects to Binance and OKX live feeds, estimates fair value with a Kalman filter and order flow imbalance, models dual-timeframe volatility with regime detection, and generates adaptive Avellaneda-Stoikov quotes with full risk controls.
+Real-time market making system. Live Binance + OKX feeds, Kalman fair value, adaptive Avellaneda-Stoikov quoting, full risk controls, and cross-venue arbitrage.
 
-Four phases from paper trading to cross-venue arbitrage.
-
----
-
-## Phases
-
-| | Phase | Description |
-|---|---|---|
-| ✅ | 1 — Paper trading | Live Binance feed, simulated fills, full P&L and spread attribution |
-| ✅ | 2 — Live execution | HMAC-signed REST orders, WebSocket user stream, cancel-and-replace |
-| ✅ | 3 — Latency | Token bucket rate limiter, quote throttle, HTTPS connection pool |
-| ✅ | 4 — Cross-venue | OKX feed, unified order book, cross-venue arb detection |
+[![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 ---
 
-## Install & Run
+## Overview
 
-```bash
-pip install -e ".[dev]"
+mm-live is an event-driven market making engine designed for paper trading and live deployment on crypto spot markets. The system is built around a single `asyncio.Queue` that decouples market data ingestion from quoting decisions — quotes are computed on a fixed 100ms timer, not on every trade.
 
-# Paper trading (no keys needed)
-python main.py
-
-# Live trading
-BINANCE_API_KEY=... BINANCE_SECRET=... python main.py
-```
-
----
-
-## Quick Example
-
-```python
-from mm_live.core.engine import Engine, EngineConfig
-
-# All parameters in one place
-config = EngineConfig(
-    gamma=0.05,           # risk aversion — higher = wider spreads
-    k=1.5,                # order arrival sensitivity
-    T_horizon=600,        # rolling inventory horizon (ticks)
-    max_inventory=0.1,    # max BTC position before one-sided quoting
-    max_drawdown_usd=50,  # circuit breaker
-)
-
-engine = Engine(config)
-await engine.run_with_feed("btcusdt")
-```
-
-```python
-from mm_live.feed.unified_book import UnifiedBook
-from mm_live.strategy.cross_venue import CrossVenueStrategy
-
-# Cross-venue arb detection
-book = UnifiedBook()
-book.update("binance", binance_orderbook)
-book.update("okx", okx_orderbook)
-
-strategy = CrossVenueStrategy(fee_bps=7.0, min_net_spread=5.0)
-signal = strategy.check_arb(book)
-
-if signal.exists:
-    print(f"Arb: buy {signal.qty} BTC on {signal.buy_venue} @ {signal.buy_price}")
-    print(f"     sell on {signal.sell_venue} @ {signal.sell_price}")
-    print(f"     net P&L: ${signal.net_spread * signal.qty:.2f}")
-```
+The quant layer implements Avellaneda-Stoikov (2008) optimal quoting with three live adaptations: regime-based spread widening, order flow imbalance skew, and one-sided quoting at inventory limits. An independent research layer provides statistical edge validation — testing whether signals predict future returns before trusting them in production.
 
 ---
 
 ## Architecture
 
-The engine runs three concurrent coroutines on a single `asyncio.Queue`. Quoting decisions happen **only on TICK events** — never on every trade.
-
 ```
-Binance WS ──► BOOK_UPDATE, TRADE ──►┐
-                                      │  asyncio.Queue ──► consumer
-100ms timer ──► TICK ────────────────►┘                        │
-                                                      on TICK only
-                                                               ▼
-                                             signals → strategy → risk → execution
-```
-
-**Signal pipeline:**
-
-```
-fair value  fv = Kalman(mid) + α · OFI
-volatility  σ  = w · σ_short + (1−w) · σ_long    (HIGH_VOL if σ_short/σ_long > 1.5)
-imbalance   I  = EMA((bid_vol − ask_vol) / (bid_vol + ask_vol))
-```
-
-**Avellaneda-Stoikov quotes:**
-
-```
-reservation  r = fv − q · γ · σ² · T
-half-spread  δ = γσ²T/2 + (1/γ) · ln(1 + γ/k)
+┌──────────────────────┐
+│   Binance WebSocket  │──► BOOK_UPDATE + TRADE ──────────┐
+└──────────────────────┘                                   │
+                                                     asyncio.Queue
+┌──────────────────────┐                                   │
+│   100ms Timer        │──► TICK ─────────────────────────►│
+└──────────────────────┘                                   │
+                                                           ▼
+                                                      _on_timer()
+                                                           │
+                              ┌────────────────────────────┼──────────────────────────┐
+                              ▼                            ▼                          ▼
+                           signals                      strategy                     risk
+                    Kalman FV + OFI           Avellaneda-Stoikov             inventory cap
+                    dual-vol + regime         imbalance skew                 drawdown breaker
+                                              one-sided at limit             spread sanity
 ```
 
-With regime multiplier, imbalance skew, and one-sided quoting at inventory limits.
+**Key invariant:** quoting decisions happen exclusively on `TICK` events. Market data updates state only — they never trigger orders directly.
+
+---
+
+## Signal Pipeline
+
+| Signal | Model | Formula |
+|---|---|---|
+| Fair value | Kalman filter + OFI | `fv = Kalman(mid) + α · imbalance` |
+| Volatility | Dual EWMA blend | `σ = w·σ_short + (1−w)·σ_long` |
+| Regime | Vol ratio | `HIGH_VOL if σ_short / σ_long > 1.5` |
+| Imbalance | OFI, EMA smoothed | `I = EMA((bid_vol − ask_vol) / (bid_vol + ask_vol))` |
+
+---
+
+## Strategy
+
+Avellaneda-Stoikov (2008) optimal quotes under inventory risk:
+
+```
+reservation price   r = fv − q · γ · σ² · T
+half-spread         δ = γσ²T/2 + (1/γ) · ln(1 + γ/k)
+
+bid = r − δ · regime_mult · (1 + α·|imbalance|)
+ask = r + δ · regime_mult · (1 − α·|imbalance|)
+```
+
+At inventory limit: only the side that reduces position is posted.
+
+---
+
+## Phases
+
+| Phase | Status | What |
+|---|---|---|
+| 1 — Paper trading | ✅ | Live feed, simulated fills, full P&L attribution |
+| 2 — Live execution | ✅ | HMAC-signed REST, WebSocket user stream, cancel-and-replace |
+| 3 — Latency | ✅ | Token bucket rate limiter, quote throttle, HTTPS connection pool |
+| 4 — Cross-venue | ✅ | OKX feed, unified order book, arb signal + hedge logic |
+
+---
+
+## Edge Validation
+
+Before trusting any signal in production, prove it statistically:
+
+```bash
+# Test 1: does OFI predict future mid-price movement?
+python scripts/collect_and_test_edge.py --duration 300 --symbol btcusdt
+
+# horizon  |   n   |   r   |   R²  | t-stat | p-value | significant
+# 100ms    |  847  |  0.12 | 0.014 |  3.41  | 0.0007  |    YES
+# 500ms    |  831  |  0.09 | 0.008 |  2.61  | 0.0091  |    YES
+# 1000ms   |  812  |  0.05 | 0.002 |  1.41  | 0.1580  |     NO
+# 5000ms   |  750  |  0.01 | 0.000 |  0.29  | 0.7720  |     NO
+
+# Test 2: does vol regime predict fill quality?
+# Test 3: does the model beat fixed-spread and naive baselines?
+python scripts/run_benchmark.py --n-ticks 1000
+
+# Strategy               Fills  Fill%    P&L    Sharpe   MaxDD  WinR%
+# AdaptiveQuoteEngine     142   14.2%  +0.31    1.823   0.089  54.1%
+# FixedSpreadMaker(±5)     89    8.9%  +0.18    0.941   0.134  51.2%
+# NaiveMaker(±0.5)        201   20.1%  -0.22   -0.612   0.287  47.8%
+```
+
+---
+
+## Quickstart
+
+```bash
+git clone https://github.com/Aliipou/mm-live
+cd mm-live
+pip install -e ".[dev]"
+
+# Paper trading — no API keys required
+python main.py
+
+# Live trading
+BINANCE_API_KEY=your_key BINANCE_SECRET=your_secret python main.py
+```
+
+| Variable | Default | Description |
+|---|---|---|
+| `MM_SYMBOL` | `btcusdt` | Trading pair |
+| `MM_GAMMA` | `0.05` | Risk aversion — higher = wider spreads |
+| `MM_K` | `1.5` | Order arrival rate sensitivity |
+| `MM_T_HORIZON` | `600` | Inventory horizon (ticks) |
+| `MM_MAX_INVENTORY` | `0.1` | Max BTC position |
+| `BINANCE_API_KEY` | — | Required for live execution |
+| `BINANCE_SECRET` | — | Required for live execution |
+| `BINANCE_TESTNET` | `false` | Use testnet |
 
 ---
 
 ## Tests
 
 ```bash
-pytest tests/ -v   # 215 tests, ~1.6s, no network calls
+pytest tests/ -v
+# 289 tests, ~4.7s, zero network calls
+```
+
+---
+
+## Project Layout
+
+```
+mm-live/
+├── main.py                         entry point
+├── src/mm_live/
+│   ├── core/
+│   │   ├── engine.py               asyncio.Queue event loop
+│   │   ├── events.py               EventType, MarketEvent
+│   │   └── latency.py              p50/p99 latency tracker
+│   ├── feed/
+│   │   ├── binance_ws.py           Binance WebSocket + reconnect
+│   │   ├── okx_ws.py               OKX WebSocket + reconnect
+│   │   ├── orderbook.py            L2 order book state machine
+│   │   └── unified_book.py         multi-venue aggregator
+│   ├── signals/
+│   │   ├── fair_value.py           Kalman filter + imbalance
+│   │   ├── imbalance.py            order flow imbalance (OFI)
+│   │   └── volatility.py           dual EWMA + regime detection
+│   ├── strategy/
+│   │   ├── quoting.py              adaptive Avellaneda-Stoikov
+│   │   └── cross_venue.py          arb signal + hedge logic
+│   ├── execution/
+│   │   ├── binance_client.py       signed REST client
+│   │   ├── user_stream.py          WebSocket fill stream
+│   │   ├── order_manager.py        cancel-and-replace
+│   │   ├── simulator.py            paper fill simulation
+│   │   ├── rate_limiter.py         token bucket
+│   │   ├── quote_throttle.py       price-move + time gate
+│   │   └── connection_pool.py      HTTPS connection pool
+│   ├── analytics/
+│   │   ├── pnl.py                  realized/unrealized P&L + attribution
+│   │   └── metrics.py              fill rate, vol, imbalance history
+│   ├── risk/
+│   │   └── limits.py               inventory cap, drawdown breaker
+│   └── research/
+│       ├── imbalance_prediction.py OFI → future return regression
+│       ├── regime_attribution.py   spread capture vs adverse selection
+│       └── benchmark.py            strategy comparison framework
+└── scripts/
+    ├── collect_and_test_edge.py    live OFI edge test
+    └── run_benchmark.py            strategy benchmark runner
 ```
 
 ---
 
 ## References
 
-- Avellaneda & Stoikov (2008). *High-frequency trading in a limit order book.* Quantitative Finance.
-- Glosten & Milgrom (1985). *Bid, ask and transaction prices in a specialist market.* Journal of Financial Economics.
-- Kyle (1985). *Continuous auctions and insider trading.* Econometrica.
-- Budish, Cramton & Shim (2015). *The high-frequency trading arms race.* Quarterly Journal of Economics.
+- Avellaneda & Stoikov (2008). *High-frequency trading in a limit order book.* Quantitative Finance, 8(3).
+- Glosten & Milgrom (1985). *Bid, ask and transaction prices in a specialist market.* Journal of Financial Economics, 14(1).
+- Kyle (1985). *Continuous auctions and insider trading.* Econometrica, 53(6).
+- Budish, Cramton & Shim (2015). *The high-frequency trading arms race.* Quarterly Journal of Economics, 130(4).
