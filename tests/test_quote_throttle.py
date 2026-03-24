@@ -9,12 +9,10 @@ from __future__ import annotations
 
 import math
 import time
-from unittest.mock import patch
 
 import pytest
 
 from mm_live.execution.quote_throttle import QuoteThrottle
-
 
 # ---------------------------------------------------------------------------
 # Helpers

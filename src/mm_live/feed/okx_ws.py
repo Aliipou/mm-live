@@ -136,7 +136,7 @@ class OKXOrderBookFeed:
 
             try:
                 raw = await asyncio.wait_for(ws.recv(), timeout=max(timeout, 0.1))
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 # Time to send a keepalive ping.
                 await ws.send("ping")
                 last_ping = time.monotonic()

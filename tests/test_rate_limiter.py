@@ -13,7 +13,6 @@ import pytest
 
 from mm_live.execution.rate_limiter import BinanceRateLimiter, TokenBucket
 
-
 # ---------------------------------------------------------------------------
 # TokenBucket — basic token consumption
 # ---------------------------------------------------------------------------

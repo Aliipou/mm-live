@@ -1,15 +1,13 @@
 """Tests for capital_efficiency module."""
 from __future__ import annotations
 
-import math
 import pytest
 
 from mm_live.analytics.capital_efficiency import (
     FillSummary,
-    CapitalEfficiencyReport,
-    compute_capital_efficiency,
-    compute_by_regime,
     compute_by_asset,
+    compute_by_regime,
+    compute_capital_efficiency,
 )
 
 

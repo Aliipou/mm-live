@@ -16,7 +16,6 @@ Reference:
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass, field
 
 from mm_live.feed.orderbook import OrderBook

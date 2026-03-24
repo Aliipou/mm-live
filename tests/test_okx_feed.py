@@ -14,7 +14,6 @@ from mm_live.feed.binance_ws import TradeEvent
 from mm_live.feed.okx_ws import OKXOrderBookFeed
 from mm_live.feed.orderbook import OrderBook
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

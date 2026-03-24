@@ -19,8 +19,8 @@ by asset so the caller can compare performance across conditions.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
-from typing import Sequence
+from collections.abc import Sequence
+from dataclasses import dataclass
 
 
 @dataclass
@@ -143,7 +143,6 @@ def compute_by_regime(
     max_position_qty: float,
 ) -> dict[str, CapitalEfficiencyReport]:
     """Return one CapitalEfficiencyReport per regime label."""
-    from itertools import groupby
     by_regime: dict[str, list[FillSummary]] = {}
     for f in fills:
         by_regime.setdefault(f.regime, []).append(f)

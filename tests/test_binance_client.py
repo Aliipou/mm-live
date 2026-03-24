@@ -18,8 +18,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from mm_live.execution.binance_client import BinanceClient, _MAINNET_BASE, _TESTNET_BASE
-
+from mm_live.execution.binance_client import _MAINNET_BASE, _TESTNET_BASE, BinanceClient
 
 # ---------------------------------------------------------------------------
 # Helpers

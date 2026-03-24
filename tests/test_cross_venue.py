@@ -11,8 +11,7 @@ import pytest
 
 from mm_live.feed.orderbook import OrderBook
 from mm_live.feed.unified_book import UnifiedBook
-from mm_live.strategy.cross_venue import ArbSignal, CrossVenueStrategy
-
+from mm_live.strategy.cross_venue import CrossVenueStrategy
 
 # ---------------------------------------------------------------------------
 # Helpers

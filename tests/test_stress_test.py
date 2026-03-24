@@ -5,10 +5,10 @@ import pytest
 
 from mm_live.analytics.capital_efficiency import FillSummary
 from mm_live.research.stress_test import (
-    StressTester,
-    StressScenario,
-    StressTestReport,
     StressResult,
+    StressScenario,
+    StressTester,
+    StressTestReport,
 )
 
 

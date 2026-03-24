@@ -11,7 +11,6 @@ import pytest
 from mm_live.feed.orderbook import OrderBook
 from mm_live.feed.unified_book import UnifiedBook, VenueQuote
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

@@ -30,8 +30,8 @@ Usage
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Sequence
 
 from mm_live.analytics.capital_efficiency import (
     CapitalEfficiencyReport,

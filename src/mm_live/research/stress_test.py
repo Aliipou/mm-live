@@ -24,11 +24,10 @@ Usage
 """
 from __future__ import annotations
 
-import math
 import random
+from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import Enum
-from typing import Sequence
 
 from mm_live.analytics.capital_efficiency import (
     CapitalEfficiencyReport,

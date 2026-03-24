@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import bisect
 import collections
 from typing import NamedTuple
 

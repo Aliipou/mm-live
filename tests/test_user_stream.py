@@ -8,14 +8,16 @@ asyncio_mode = "auto" (set in pyproject.toml).
 from __future__ import annotations
 
 import asyncio
-import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import orjson
 import pytest
 
-from mm_live.execution.user_stream import UserDataStream, _KEEPALIVE_INTERVAL_S, _MAINNET_WS_BASE, _TESTNET_WS_BASE
-
+from mm_live.execution.user_stream import (
+    _MAINNET_WS_BASE,
+    _TESTNET_WS_BASE,
+    UserDataStream,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers

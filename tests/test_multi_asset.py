@@ -1,13 +1,10 @@
 """Tests for multi_asset validation module."""
 from __future__ import annotations
 
-import pytest
-
 from mm_live.analytics.capital_efficiency import FillSummary
 from mm_live.research.multi_asset import (
     AssetSlice,
     MultiAssetValidator,
-    MultiAssetValidationReport,
 )
 
 

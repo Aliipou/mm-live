@@ -17,7 +17,7 @@ Typical usage::
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from mm_live.feed.unified_book import UnifiedBook
 
