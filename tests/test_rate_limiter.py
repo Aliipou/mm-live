@@ -148,14 +148,17 @@ class TestBinanceRateLimiter:
         assert rl.available_request_weight() < before
 
     async def test_concurrent_acquirers_are_serialized(self) -> None:
-        """Concurrent callers share the same bucket; combined consumption is accurate."""
-        bucket = TokenBucket(rate=1_000_000.0, capacity=10.0)
+        """Concurrent callers share the same bucket; combined consumption is tracked."""
+        # Use a very low refill rate so tokens don't replenish before we check.
+        # capacity=10, rate=0.001/s: 3 acquires consume 3 tokens; refill in that
+        # time is negligible (< 0.001 tokens).
+        bucket = TokenBucket(rate=0.001, capacity=10.0)
         await asyncio.gather(
             bucket.acquire(1.0),
             bucket.acquire(1.0),
             bucket.acquire(1.0),
         )
-        # 10 - 3 = 7 tokens left (plus tiny refill during concurrent execution)
+        # 10 - 3 = 7 tokens left; refill is negligible at 0.001 tokens/s
         assert bucket.available() < 9.0
 
     async def test_available_orders_sec_decreases_after_acquire_order(self) -> None:
