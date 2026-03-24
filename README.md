@@ -5,7 +5,7 @@ Real-time market making system. Live Binance + OKX feeds, Kalman fair value, ada
 [![CI](https://github.com/Aliipou/mm-live/actions/workflows/ci.yml/badge.svg)](https://github.com/Aliipou/mm-live/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-321%20passing-brightgreen)](https://github.com/Aliipou/mm-live/actions)
+[![Tests](https://img.shields.io/badge/tests-336%20passing-brightgreen)](https://github.com/Aliipou/mm-live/actions)
 
 ---
 
