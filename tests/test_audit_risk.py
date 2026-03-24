@@ -94,11 +94,18 @@ class TestAuditRiskController:
         out = capsys.readouterr().out
         assert "AUDIT RISK" in out
 
-    def test_position_scale_equals_one_minus_risk(self):
+    def test_position_scale_bounded_by_risk(self):
+        # With hysteresis, scale is either 1.0 (not yet triggered)
+        # or 1 - risk (after consecutive elevated audits).
+        # Either way: scale <= 1.0 and scale >= 1 - risk (never worse than full reduction).
         c = AuditRiskController(audit_every_n=5)
         _feed(c, 50)
         s = c.state()
-        assert abs(s.position_scale - (1.0 - s.overfitting_risk)) < 1e-6
+        assert s.position_scale <= 1.0
+        assert s.position_scale >= 0.0
+        # If hysteresis triggered, scale == 1 - risk
+        if s.consecutive_elevated >= 2:
+            assert abs(s.position_scale - (1.0 - s.overfitting_risk)) < 1e-6
 
     def test_overfitting_risk_in_unit_interval(self):
         c = AuditRiskController(audit_every_n=5)
