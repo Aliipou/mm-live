@@ -2,8 +2,10 @@
 
 Real-time market making system. Live Binance + OKX feeds, Kalman fair value, adaptive Avellaneda-Stoikov quoting, full risk controls, and cross-venue arbitrage.
 
+[![CI](https://github.com/Aliipou/mm-live/actions/workflows/ci.yml/badge.svg)](https://github.com/Aliipou/mm-live/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Tests](https://img.shields.io/badge/tests-321%20passing-brightgreen)](https://github.com/Aliipou/mm-live/actions)
 
 ---
 
@@ -152,7 +154,7 @@ BINANCE_API_KEY=your_key BINANCE_SECRET=your_secret python main.py
 
 ```bash
 pytest tests/ -v
-# 289 tests, ~4.7s, zero network calls
+# 321 tests, ~3.5s, zero network calls
 ```
 
 ---
@@ -195,11 +197,17 @@ mm-live/
 │   │   └── metrics.py              fill rate, vol, imbalance history
 │   ├── risk/
 │   │   └── limits.py               inventory cap, drawdown breaker
+│   ├── analytics/
+│   │   ├── pnl.py                  realized/unrealized P&L + attribution
+│   │   ├── metrics.py              fill rate, vol, imbalance history
+│   │   └── capital_efficiency.py   ROI, Sharpe, Sortino, Calmar, hit rate
 │   └── research/
 │       ├── imbalance_prediction.py OFI → future return regression
 │       ├── regime_attribution.py   spread capture vs adverse selection
 │       ├── benchmark.py            strategy comparison framework
-│       └── markout.py              post-fill adverse selection tracker
+│       ├── markout.py              post-fill adverse selection tracker
+│       ├── multi_asset.py          BTC/ETH × low/normal/high-vol validation
+│       └── stress_test.py          7 failure scenarios: flash crash, toxic flow, etc.
 └── scripts/
     ├── collect_and_test_edge.py    live OFI edge test
     └── run_benchmark.py            strategy benchmark runner
