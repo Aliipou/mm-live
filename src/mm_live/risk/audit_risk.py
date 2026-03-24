@@ -35,9 +35,9 @@ from collections import deque
 from dataclasses import dataclass
 
 import numpy as np
-import pandas as pd
 
 try:
+    import pandas as pd
     from backtest_audit import BacktestAuditor
     from backtest_audit.walk_forward import walk_forward_validation
     _AUDIT_AVAILABLE = True
