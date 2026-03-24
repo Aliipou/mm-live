@@ -11,6 +11,9 @@ regime_attribution
 
 benchmark
     BacktestResult, BenchmarkRunner, FixedSpreadMaker, MarketTick, NaiveMaker
+
+markout
+    FillMark, MarkoutStats, MarkoutTracker
 """
 
 from __future__ import annotations
@@ -26,6 +29,11 @@ from mm_live.research.imbalance_prediction import (
     EdgeTestResult,
     ImbalanceEdgeTest,
     ImbalanceSample,
+)
+from mm_live.research.markout import (
+    FillMark,
+    MarkoutStats,
+    MarkoutTracker,
 )
 from mm_live.research.regime_attribution import (
     FillRecord,
@@ -50,4 +58,8 @@ __all__ = [
     "FixedSpreadMaker",
     "MarketTick",
     "NaiveMaker",
+    # markout
+    "FillMark",
+    "MarkoutStats",
+    "MarkoutTracker",
 ]
