@@ -36,6 +36,7 @@ from mm_live.execution.simulator import FillSimulator
 from mm_live.feed.binance_ws import BinanceOrderBookFeed, TradeEvent
 from mm_live.feed.orderbook import OrderBook
 from mm_live.risk.limits import RiskLimits, RiskStatus
+from mm_live.risk.live_audit_loop import LiveAuditLoop
 from mm_live.signals.fair_value import FairValueSignal
 from mm_live.signals.imbalance import OrderFlowImbalance
 from mm_live.signals.volatility import DualVolatility
@@ -67,6 +68,12 @@ class EngineConfig:
 
     timer_interval_sec: float = 0.1   # quote decisions every 100ms
     log_interval_sec: float = 5.0
+
+    # Audit-driven risk scaling (backtest-audit integration)
+    audit_n_trials: int = 1           # param combos tried — higher = stricter DSR
+    audit_every: int = 50             # re-audit every N fills
+    audit_consensus: int = 2          # signals that must flag before scaling down
+    audit_hysteresis: int = 2         # consecutive elevated audits before scaling
 
 
 class Engine:
@@ -121,6 +128,14 @@ class Engine:
             max_inventory_btc=self.cfg.max_inventory,
             max_drawdown_usd=self.cfg.max_drawdown_usd,
             max_spread_usd=self.cfg.max_spread_usd,
+        )
+
+        # Audit-driven overfitting risk (backtest-audit integration)
+        self.audit_loop = LiveAuditLoop(
+            n_trials=self.cfg.audit_n_trials,
+            audit_every=self.cfg.audit_every,
+            consensus=self.cfg.audit_consensus,
+            hysteresis=self.cfg.audit_hysteresis,
         )
 
         # Analytics
@@ -221,6 +236,11 @@ class Engine:
                 fair_value=fill.get("fair_value", 0.0),
             )
             self.metrics.record_fill(fill)
+            # Feed realized PnL into the audit loop for overfitting detection
+            self.audit_loop.record_fill(
+                pnl=fill.get("pnl", 0.0),
+                regime=fill.get("regime", "normal"),
+            )
 
     async def _on_timer(self, ts_ms: int) -> None:
         """
@@ -260,7 +280,7 @@ class Engine:
         )
         self._current_quotes = quotes
 
-        # 3. Risk
+        # 3. Risk: pre-trade limits
         pnl_total = self.pnl.total(fv)
         status = self.risk.check(
             inventory=self.pnl.inventory,
@@ -273,8 +293,17 @@ class Engine:
             self.order_manager.cancel_all()
             return
 
-        # 4. Update order manager (cancel-and-replace if moved)
-        self.order_manager.update_quotes(quotes.bid, quotes.ask, self.cfg.fill_qty)
+        # 3b. Audit risk: halt if overfitting detected
+        if self.audit_loop.should_halt():
+            logger.warning("AUDIT HALT — overfitting risk > threshold, stopping quotes")
+            self.order_manager.cancel_all()
+            self._running = False
+            return
+
+        # 4. Apply audit position scaling and update order manager
+        audit_scale = self.audit_loop.position_scale(regime=regime)
+        scaled_qty = self.cfg.fill_qty * audit_scale
+        self.order_manager.update_quotes(quotes.bid, quotes.ask, scaled_qty)
 
         # 5. Simulate fills from last observed trade
         if self._last_trade is not None:
@@ -294,11 +323,13 @@ class Engine:
         # 7. Periodic log
         now = time.monotonic()
         if now - self._last_log >= self.cfg.log_interval_sec:
+            audit_st = self.audit_loop.state()
             logger.info(
                 "[%s] mid=%.2f fv=%.2f σ=%.4f imb=%+.3f regime=%s | "
                 "bid=%.2f ask=%.2f spread=%.2f | "
                 "inv=%+.4f pnl_r=%.2f pnl_u=%.2f | "
-                "fills=%d fill_rate=%.3f risk=%s ticks=%d",
+                "fills=%d fill_rate=%.3f risk=%s | "
+                "audit_risk=%.0f%% scale=%.0f%% ticks=%d",
                 symbol if (symbol := "BTCUSDT") else "?",
                 mid, fv, sigma, imb, regime,
                 quotes.bid, quotes.ask, quotes.spread,
@@ -308,6 +339,8 @@ class Engine:
                 self.metrics.total_fills,
                 self.metrics.fill_rate,
                 status.value,
+                audit_st.risk_score * 100,
+                audit_scale * 100,
                 self._n_ticks,
             )
             self._last_log = now
