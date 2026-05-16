@@ -9,6 +9,22 @@ Real-time market making system. Live Binance + OKX feeds, Kalman fair value, ada
 
 ---
 
+> [!WARNING]
+> **PAPER TRADING ONLY — READ BEFORE RUNNING WITH REAL FUNDS**
+>
+> This software is for **educational and paper trading purposes only**. Using it with real funds
+> carries substantial financial risk. Before considering live deployment:
+>
+> - Run paper trading mode for a minimum of several weeks under diverse market conditions
+> - Validate edge statistics (OFI predictiveness, markout analysis) are positive on your specific trading pair
+> - Implement additional position-level circuit breakers and exchange-side order limits
+> - Understand that market-making carries inventory risk, adverse selection risk, and latency risk
+> - Ensure compliance with all applicable regulations in your jurisdiction
+>
+> The authors assume no liability for financial losses. **Start with paper trading only.**
+
+---
+
 ## Overview
 
 mm-live is an event-driven market making engine designed for paper trading and live deployment on crypto spot markets. The system is built around a single `asyncio.Queue` that decouples market data ingestion from quoting decisions — quotes are computed on a fixed 100ms timer, not on every trade.
